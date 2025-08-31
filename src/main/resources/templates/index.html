@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Трекер задач - Канбан доска</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" rel="stylesheet">
+    <style>
+        .kanban-board {
+            min-height: 80vh;
+            background: linear-gradient(135deg, #d1d9fd 0%, #FFFFFF 100%);
+            padding: 20px;
+        }
+        
+        .kanban-column {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 10px;
+            padding: 15px;
+            margin: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            min-height: 400px;
+        }
+        
+        .kanban-column h3 {
+            text-align: center;
+            margin-bottom: 20px;
+            color: #333;
+            font-weight: bold;
+        }
+        
+        .task-card {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 10px;
+            cursor: grab;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .task-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+        }
+        
+        .task-card.dragging {
+            opacity: 0.5;
+            transform: rotate(5deg);
+        }
+        
+        .task-title {
+            font-weight: bold;
+            margin-bottom: 8px;
+            color: #333;
+        }
+        
+        .task-description {
+            color: #666;
+            font-size: 0.9em;
+            margin-bottom: 8px;
+        }
+        
+        .task-date {
+            color: #888;
+            font-size: 0.8em;
+            margin-bottom: 8px;
+        }
+        
+        .task-tag {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            color: white;
+            font-weight: bold;
+        }
+        
+        .task-actions {
+            display: flex;
+            gap: 5px;
+            margin-top: 10px;
+        }
+        
+        .btn-edit, .btn-delete {
+            padding: 4px 8px;
+            font-size: 0.8em;
+            border-radius: 4px;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .btn-edit {
+            background-color: #007bff;
+            color: white;
+        }
+        
+        .btn-edit:hover {
+            background-color: #0056b3;
+        }
+        
+        .btn-delete {
+            background-color: #dc3545;
+            color: white;
+        }
+        
+        .btn-delete:hover {
+            background-color: #c82333;
+        }
+        
+        .controls {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        .modal-content {
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+        
+        .modal-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 15px 15px 0 0;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            border-radius: 25px;
+            padding: 10px 25px;
+        }
+        
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%);
+            transform: translateY(-1px);
+        }
+        
+        .btn-secondary {
+            border-radius: 25px;
+            padding: 10px 25px;
+        }
+        
+        .form-control, .form-select {
+            border-radius: 8px;
+            border: 2px solid #e9ecef;
+        }
+        
+        .form-control:focus, .form-select:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+        }
+        
+        .kanban-column.drag-over {
+            background: rgba(102, 126, 234, 0.1);
+            border: 2px dashed #667eea;
+        }
+        
+        .task-count {
+            background: #667eea;
+            color: white;
+            border-radius: 50%;
+            width: 25px;
+            height: 25px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8em;
+            margin-left: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid kanban-board">
+        <!-- Контролы -->
+        <div class="controls">
+            <div class="row align-items-center">
+                <div class="col-md-4">
+                    <button class="btn btn-primary" onclick="openTaskModal()">
+                        <i class="bi bi-plus-circle"></i> Создать задачу
+                    </button>
+                </div>
+                <div class="col-md-4">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="hideCompleted" onchange="toggleCompletedTasks()">
+                        <label class="form-check-label" for="hideCompleted">
+                            Скрыть выполненные
+                        </label>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <select class="form-select" id="tagFilter" onchange="filterByTag()">
+                        <option value="">Все теги</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- Канбан доска -->
+        <div class="row">
+            <div class="col-md-4">
+                <div class="kanban-column" data-status="backlog" ondrop="drop(event)" ondragover="allowDrop(event)" ondragleave="dragLeave(event)">
+                    <h3>Бэклог <span class="task-count" id="backlog-count">0</span></h3>
+                    <div id="backlog-tasks" class="task-list"></div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="kanban-column" data-status="in-progress" ondrop="drop(event)" ondragover="allowDrop(event)" ondragleave="dragLeave(event)">
+                    <h3>В работе <span class="task-count" id="in-progress-count">0</span></h3>
+                    <div id="in-progress-tasks" class="task-list"></div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="kanban-column" data-status="completed" ondrop="drop(event)" ondragover="allowDrop(event)" ondragleave="dragLeave(event)">
+                    <h3>Готово <span class="task-count" id="completed-count">0</span></h3>
+                    <div id="completed-tasks" class="task-list"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно для создания задачи -->
+    <div class="modal fade" id="taskModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalTitle">Создать новую задачу</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="taskForm">
+                        <input type="hidden" id="editTaskId">
+                        <div class="mb-3">
+                            <label for="taskTitle" class="form-label">Название задачи *</label>
+                            <input type="text" class="form-control" id="taskTitle" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="taskDescription" class="form-label">Описание задачи</label>
+                            <textarea class="form-control" id="taskDescription" rows="3"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label for="taskTag" class="form-label">Тег</label>
+                            <select class="form-select" id="taskTag">
+                                <option value="">Выберите тег</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="taskDate" class="form-label">Дата выполнения</label>
+                            <input type="text" class="form-control" id="taskDate" placeholder="Выберите дату">
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="button" class="btn btn-primary" onclick="saveTask()">Сохранить</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ru.js"></script>
+    <script>
+        let tasks = [];
+        let tags = [];
+        let hideCompleted = false;
+        let selectedTagFilter = '';
+        let isEditing = false;
+
+        // Инициализация приложения
+        document.addEventListener('DOMContentLoaded', function() {
+            loadTags();
+            loadTasks();
+            initializeDatePicker();
+        });
+
+        // Загрузка тегов
+        async function loadTags() {
+            try {
+                const response = await fetch('/api/tags');
+                tags = await response.json();
+                populateTagSelects();
+            } catch (error) {
+                console.error('Ошибка загрузки тегов:', error);
+            }
+        }
+
+        // Загрузка задач
+        async function loadTasks() {
+            try {
+                const response = await fetch('/api/tasks');
+                tasks = await response.json();
+                renderTasks();
+            } catch (error) {
+                console.error('Ошибка загрузки задач:', error);
+                tasks = [];
+            }
+        }
+
+        // Сохранение задач
+        async function saveTasks() {
+            try {
+                await fetch('/api/tasks', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(tasks)
+                });
+            } catch (error) {
+                console.error('Ошибка сохранения задач:', error);
+            }
+        }
+
+        // Заполнение селектов тегов
+        function populateTagSelects() {
+            const tagSelects = ['taskTag', 'tagFilter'];
+            
+            tagSelects.forEach(selectId => {
+                const select = document.getElementById(selectId);
+                if (select) {
+                    // Очищаем существующие опции (кроме первой)
+                    while (select.children.length > 1) {
+                        select.removeChild(select.lastChild);
+                    }
+                    
+                    // Добавляем теги
+                    tags.forEach(tag => {
+                        const option = document.createElement('option');
+                        option.value = tag.id;
+                        option.textContent = tag.name;
+                        select.appendChild(option);
+                    });
+                }
+            });
+        }
+
+        // Инициализация датапикера
+        function initializeDatePicker() {
+            flatpickr("#taskDate", {
+                locale: "ru",
+                dateFormat: "d.m.Y",
+                allowInput: true,
+                placeholder: "Выберите дату"
+            });
+        }
+
+        // Открытие модального окна
+        function openTaskModal() {
+            isEditing = false;
+            document.getElementById('modalTitle').textContent = 'Создать новую задачу';
+            document.getElementById('taskForm').reset();
+            document.getElementById('editTaskId').value = '';
+            document.getElementById('taskDate').value = '';
+            const modal = new bootstrap.Modal(document.getElementById('taskModal'));
+            modal.show();
+        }
+
+        // Открытие модального окна для редактирования
+        function editTask(taskId) {
+            const task = tasks.find(t => t.id === taskId);
+            if (!task) return;
+            
+            isEditing = true;
+            document.getElementById('modalTitle').textContent = 'Редактировать задачу';
+            document.getElementById('editTaskId').value = task.id;
+            document.getElementById('taskTitle').value = task.title;
+            document.getElementById('taskDescription').value = task.description || '';
+            document.getElementById('taskTag').value = task.tagId || '';
+            document.getElementById('taskDate').value = task.date || '';
+            
+            const modal = new bootstrap.Modal(document.getElementById('taskModal'));
+            modal.show();
+        }
+
+        // Удаление задачи
+        function deleteTask(taskId) {
+            const task = tasks.find(t => t.id === taskId);
+            if (!task) return;
+            
+            if (confirm(`Вы уверены, что хотите удалить задачу "${task.title}"?`)) {
+                tasks = tasks.filter(t => t.id !== taskId);
+                saveTasks();
+                renderTasks();
+            }
+        }
+
+        // Сохранение задачи
+        function saveTask() {
+            const title = document.getElementById('taskTitle').value.trim();
+            const description = document.getElementById('taskDescription').value.trim();
+            const tagId = document.getElementById('taskTag').value;
+            const date = document.getElementById('taskDate').value;
+
+            if (!title) {
+                alert('Пожалуйста, введите название задачи');
+                return;
+            }
+
+            if (isEditing) {
+                // Редактирование существующей задачи
+                const taskId = parseInt(document.getElementById('editTaskId').value);
+                const task = tasks.find(t => t.id === taskId);
+                if (task) {
+                    task.title = title;
+                    task.description = description;
+                    task.tagId = tagId ? parseInt(tagId) : null;
+                    task.date = date;
+                }
+            } else {
+                // Создание новой задачи
+                const newTask = {
+                    id: Date.now(),
+                    title: title,
+                    description: description,
+                    tagId: tagId ? parseInt(tagId) : null,
+                    date: date,
+                    status: 'backlog',
+                    createdAt: new Date().toISOString()
+                };
+                tasks.push(newTask);
+            }
+
+            saveTasks();
+            renderTasks();
+
+            // Закрываем модальное окно
+            const modal = bootstrap.Modal.getInstance(document.getElementById('taskModal'));
+            modal.hide();
+        }
+
+        // Рендеринг задач
+        function renderTasks() {
+            const columns = ['backlog', 'in-progress', 'completed'];
+            
+            columns.forEach(status => {
+                const container = document.getElementById(`${status}-tasks`);
+                const countElement = document.getElementById(`${status}-count`);
+                
+                let filteredTasks = tasks.filter(task => task.status === status);
+                
+                // Применяем фильтры
+                if (hideCompleted && status === 'completed') {
+                    filteredTasks = [];
+                }
+                
+                if (selectedTagFilter) {
+                    filteredTasks = filteredTasks.filter(task => task.tagId == selectedTagFilter);
+                }
+                
+                // Обновляем счетчик
+                countElement.textContent = filteredTasks.length;
+                
+                // Рендерим задачи
+                container.innerHTML = '';
+                filteredTasks.forEach(task => {
+                    const taskElement = createTaskElement(task);
+                    container.appendChild(taskElement);
+                });
+            });
+        }
+
+        // Создание элемента задачи
+        function createTaskElement(task) {
+            const taskDiv = document.createElement('div');
+            taskDiv.className = 'task-card';
+            taskDiv.draggable = true;
+            taskDiv.dataset.taskId = task.id;
+            
+            taskDiv.addEventListener('dragstart', dragStart);
+            taskDiv.addEventListener('dragend', dragEnd);
+            
+            const tag = tags.find(t => t.id === task.tagId);
+            const tagHtml = tag ? `<span class="task-tag" style="background-color: ${tag.color}">${tag.name}</span>` : '';
+            
+            const dateHtml = task.date ? `<div class="task-date">📅 ${task.date}</div>` : '';
+            
+            taskDiv.innerHTML = `
+                <div class="task-title">${task.title}</div>
+                ${task.description ? `<div class="task-description">${task.description}</div>` : ''}
+                ${dateHtml}
+                ${tagHtml}
+                <div class="task-actions">
+                    <button class="btn-edit" onclick="editTask(${task.id})">✏️ Редактировать</button>
+                    <button class="btn-delete" onclick="deleteTask(${task.id})">🗑️ Удалить</button>
+                </div>
+            `;
+            
+            return taskDiv;
+        }
+
+        // Drag and Drop функции
+        function dragStart(e) {
+            e.target.classList.add('dragging');
+            e.dataTransfer.setData('text/plain', e.target.dataset.taskId);
+        }
+
+        function dragEnd(e) {
+            e.target.classList.remove('dragging');
+        }
+
+        function allowDrop(e) {
+            e.preventDefault();
+            e.currentTarget.classList.add('drag-over');
+        }
+
+        function dragLeave(e) {
+            e.currentTarget.classList.remove('drag-over');
+        }
+
+        function drop(e) {
+            e.preventDefault();
+            e.currentTarget.classList.remove('drag-over');
+            
+            const taskId = parseInt(e.dataTransfer.getData('text/plain'));
+            const newStatus = e.currentTarget.dataset.status;
+            
+            const task = tasks.find(t => t.id === taskId);
+            if (task) {
+                task.status = newStatus;
+                saveTasks();
+                renderTasks();
+            }
+        }
+
+        // Переключение отображения выполненных задач
+        function toggleCompletedTasks() {
+            hideCompleted = document.getElementById('hideCompleted').checked;
+            renderTasks();
+        }
+
+        // Фильтр по тегу
+        function filterByTag() {
+            selectedTagFilter = document.getElementById('tagFilter').value;
+            renderTasks();
+        }
+    </script>
+</body>
+</html>
