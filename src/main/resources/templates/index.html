@@ -38,6 +38,7 @@
             cursor: grab;
             transition: all 0.3s ease;
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            position: relative;
         }
         
         .task-card:hover {
@@ -48,6 +49,10 @@
         .task-card.dragging {
             opacity: 0.5;
             transform: rotate(5deg);
+        }
+        
+        .task-content {
+            flex: 1;
         }
         
         .task-title {
@@ -66,6 +71,15 @@
             color: #888;
             font-size: 0.8em;
             margin-bottom: 8px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            display: inline-block;
+        }
+        
+        .task-date.overdue {
+            background-color: #ffebee;
+            color: #d32f2f;
+            font-weight: bold;
         }
         
         .task-tag {
@@ -78,9 +92,12 @@
         }
         
         .task-actions {
+            position: absolute;
+            top: 10px;
+            right: 10px;
             display: flex;
+            flex-direction: column;
             gap: 5px;
-            margin-top: 10px;
         }
         
         .btn-edit, .btn-delete {
@@ -90,6 +107,7 @@
             border: none;
             cursor: pointer;
             transition: all 0.2s ease;
+            width: 100px;
         }
         
         .btn-edit {
@@ -454,6 +472,9 @@
                     filteredTasks = filteredTasks.filter(task => task.tagId == selectedTagFilter);
                 }
                 
+                // Сортируем задачи по дате
+                filteredTasks = sortTasksByDate(filteredTasks);
+                
                 // Обновляем счетчик
                 countElement.textContent = filteredTasks.length;
                 
@@ -464,6 +485,63 @@
                     container.appendChild(taskElement);
                 });
             });
+        }
+
+        // Сортировка задач по дате
+        function sortTasksByDate(tasks) {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            return tasks.sort((a, b) => {
+                const dateA = a.date ? parseDate(a.date) : null;
+                const dateB = b.date ? parseDate(b.date) : null;
+                
+                // Если у одной задачи нет даты, а у другой есть
+                if (!dateA && dateB) return 1;
+                if (dateA && !dateB) return -1;
+                if (!dateA && !dateB) return 0;
+                
+                const isOverdueA = dateA < today;
+                const isOverdueB = dateB < today;
+                const isTodayA = dateA.getTime() === today.getTime();
+                const isTodayB = dateB.getTime() === today.getTime();
+                
+                // Сначала просроченные задачи
+                if (isOverdueA && !isOverdueB) return -1;
+                if (!isOverdueA && isOverdueB) return 1;
+                
+                // Затем задачи на сегодня
+                if (isTodayA && !isTodayB) return -1;
+                if (!isTodayA && isTodayB) return 1;
+                
+                // Затем по дате (ближайшие сначала)
+                return dateA - dateB;
+            });
+        }
+
+        // Парсинг даты из формата DD.MM.YYYY
+        function parseDate(dateString) {
+            const parts = dateString.split('.');
+            if (parts.length !== 3) return null;
+            
+            const day = parseInt(parts[0]);
+            const month = parseInt(parts[1]) - 1; // Месяцы в JS начинаются с 0
+            const year = parseInt(parts[2]);
+            
+            return new Date(year, month, day);
+        }
+
+        // Проверка, просрочена ли дата
+        function isDateOverdue(dateString) {
+            if (!dateString) return false;
+            
+            const taskDate = parseDate(dateString);
+            if (!taskDate) return false;
+            
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            return taskDate < today;
         }
 
         // Создание элемента задачи
@@ -479,13 +557,17 @@
             const tag = tags.find(t => t.id === task.tagId);
             const tagHtml = tag ? `<span class="task-tag" style="background-color: ${tag.color}">${tag.name}</span>` : '';
             
-            const dateHtml = task.date ? `<div class="task-date">📅 ${task.date}</div>` : '';
+            const isOverdue = isDateOverdue(task.date);
+            const dateClass = isOverdue ? 'task-date overdue' : 'task-date';
+            const dateHtml = task.date ? `<div class="${dateClass}">📅 ${task.date}</div>` : '';
             
             taskDiv.innerHTML = `
-                <div class="task-title">${task.title}</div>
-                ${task.description ? `<div class="task-description">${task.description}</div>` : ''}
-                ${dateHtml}
-                ${tagHtml}
+                <div class="task-content">
+                    <div class="task-title">${task.title}</div>
+                    ${task.description ? `<div class="task-description">${task.description}</div>` : ''}
+                    ${dateHtml}
+                    ${tagHtml}
+                </div>
                 <div class="task-actions">
                     <button class="btn-edit" onclick="editTask(${task.id})">✏️ Редактировать</button>
                     <button class="btn-delete" onclick="deleteTask(${task.id})">🗑️ Удалить</button>
